@@ -10,7 +10,7 @@ Siswa buka link → izinkan lokasi → selfie → kirim. Data langsung masuk Goo
 ## Arsitektur
 
 ```
-Browser siswa  →  HTML statis (Netlify)  →  Google Apps Script (webhook)  →  Google Sheets
+Browser siswa  →  HTML statis  →  Google Apps Script (webhook)  →  Google Sheets
 ```
 
 - **Frontend** — file statis. Gak butuh server. Butuh HTTPS karena GPS browser cuma jalan di HTTPS.
@@ -70,24 +70,7 @@ ngutak-ngatik JS di browser.
 
 ---
 
-## Deploy ke Netlify
 
-### Cara cepat (drag & drop, 10 detik)
-
-1. Buka `https://app.netlify.com/drop`
-2. Drag folder `absensi/` ke halaman itu
-3. Dapet HTTPS otomatis + subdomain acak
-
-### Cara rapi (subdomain pilihan sendiri)
-
-1. Daftar/masuk `app.netlify.com`
-2. **Add new site → Import an existing project** (kalau sudah di GitHub) atau
-   **Deploy manually** (drag folder)
-3. **Site configuration → Change site name** → misal `absensi-yappa`
-   → jadi `https://absensi-yappa.netlify.app`
-4. **Deploys → Deploy settings → Branch: main** biar tiap `git push` auto-deploy
-
-`netlify.toml` sudah diatur: publish root, header keamanan, izin `geolocation` + `camera`.
 
 ### Cek setelah deploy
 
