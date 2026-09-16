@@ -1,11 +1,11 @@
 /**
  * Absensi App - SMK Yappa Depok
- * Frontend logic dengan GPS validation, selfie compression, dan mock backend support
+ * Frontend logic: Multi-Class, Shift/Jam, GPS (20m), High-Res/iPhone Image Compressor, Webhook to Google Sheets
  */
 
 // ==================== CONFIG ====================
 const CONFIG = {
-  // Webhook Google Apps Script (production, deploy 2026-09-16)
+  // Webhook Google Apps Script
   webhookUrl: 'https://script.google.com/macros/s/AKfycbwjQttCY2qtNNvy8OpPVnz10_hVQdgPMYlKdhTfrAw2uUavh0NPO1qmaIqdZfO3aBOs/exec',
   
   // Titik koordinat sekolah (SMK Yappa Depok)
@@ -13,17 +13,17 @@ const CONFIG = {
     name: 'SMK Yappa Depok',
     lat: -6.394003,
     lng: 106.845314,
-    radius: 150 // meter
+    radius: 20 // meter
   },
   
   // Validasi GPS
-  maxAcceptableAccuracy: 50, // meter — lebih kecil = lebih akurat
+  maxAcceptableAccuracy: 40, // meter toleransi GPS HP
   requireAccuracy: true,
   
-  // Selfie
-  maxPhotoSize: 1024 * 1024, // 1MB max
-  maxDimension: 600, // px
-  quality: 0.85 // JPEG quality
+  // Selfie Compression (iPhone & Android high-res safe)
+  maxPhotoInputSize: 20 * 1024 * 1024, // terima hingga 20MB file mentah
+  maxDimension: 800, // resize max 800px (sangat tajam untuk selfie tapi kecil ukurannya)
+  quality: 0.75 // JPEG quality ~80-120KB
 };
 
 // ==================== DOM ELEMENTS ====================
@@ -35,6 +35,8 @@ const els = {
   btnGps: document.getElementById('btn-gps'),
   form: document.getElementById('form-absen'),
   nama: document.getElementById('nama'),
+  kelas: document.getElementById('kelas'),
+  jam: document.getElementById('jam'),
   role: document.getElementById('role'),
   tipe: document.getElementById('tipe'),
   sectionSelfie: document.getElementById('section-selfie'),
@@ -59,19 +61,19 @@ let currentState = {
 function setGpsStatus(status, message = '') {
   const map = {
     idle: { badge: 'idle', text: 'Belum Diambil' },
-    processing: { badge: 'processing', text: 'Memproses...' },
+    processing: { badge: 'processing', text: 'Memproses GPS...' },
     active: { badge: 'active', text: 'Valid ✅' },
     error: { badge: 'error', text: 'Gagal ❌' }
   };
   
-  const s = map[status];
+  const s = map[status] || map.idle;
   els.gpsBadge.className = `badge ${s.badge}`;
   els.gpsBadge.textContent = message || s.text;
   
   if (status === 'active') {
     els.valLat.textContent = currentState.lat.toFixed(6);
     els.valLng.textContent = currentState.lng.toFixed(6);
-    els.valAcc.textContent = currentState.accuracy.toFixed(2) + ' m';
+    els.valAcc.textContent = currentState.accuracy.toFixed(1) + ' m';
   } else {
     els.valLat.textContent = '-';
     els.valLng.textContent = '-';
@@ -92,11 +94,11 @@ function validateLocation(lat, lng, accuracy) {
   const dist = haversine(lat, lng, CONFIG.school.lat, CONFIG.school.lng);
   
   if (CONFIG.requireAccuracy && accuracy > CONFIG.maxAcceptableAccuracy) {
-    throw new Error(`Akurasi GPS (${accuracy.toFixed(0)}m) terlalu rendah. Maksimal ${CONFIG.maxAcceptableAccuracy}m.`);
+    throw new Error(`Akurasi GPS (${accuracy.toFixed(0)}m) kurang presisi. Maksimal ${CONFIG.maxAcceptableAccuracy}m.`);
   }
   
   if (dist > CONFIG.school.radius) {
-    throw new Error(`Lokasi Anda (${dist.toFixed(0)}m dari ${CONFIG.school.name}) di luar radius ${CONFIG.school.radius}m.`);
+    throw new Error(`Anda berada ${dist.toFixed(1)}m dari sekolah (Maksimal radius ${CONFIG.school.radius}m).`);
   }
   
   return { distance: dist, valid: true };
@@ -105,7 +107,7 @@ function validateLocation(lat, lng, accuracy) {
 els.btnGps.addEventListener('click', () => {
   if (!navigator.geolocation) {
     setGpsStatus('error', 'GPS tidak didukung');
-    alert('Browser Anda tidak mendukung Geolocation API.');
+    showError('Browser Anda tidak mendukung Geolocation API.');
     return;
   }
   
@@ -120,15 +122,15 @@ els.btnGps.addEventListener('click', () => {
       try {
         validateLocation(currentState.lat, currentState.lng, currentState.accuracy);
         setGpsStatus('active', `Valid ✅ (${currentState.accuracy.toFixed(0)}m)`);
-        showSuccess('Lokasi GPS valid!');
+        showSuccess('Lokasi GPS valid di area sekolah!');
       } catch (err) {
         setGpsStatus('error', err.message);
         showError(err.message);
       }
     },
     err => {
-      setGpsStatus('error', 'Gagal mendapatkan lokasi');
-      showError('GPS Error: ' + err.message + '. Pastikan GPS aktif dan izin lokasi diberikan.');
+      setGpsStatus('error', 'Gagal ambil lokasi');
+      showError('GPS Error: ' + err.message + '. Pastikan GPS aktif dan beri izin browser.');
     },
     {
       enableHighAccuracy: true,
@@ -141,8 +143,10 @@ els.btnGps.addEventListener('click', () => {
 // ==================== CAMERA / SELFIE HANDLERS ====================
 els.tipe.addEventListener('change', () => {
   els.sectionSelfie.style.display = els.tipe.value === 'foto' ? 'block' : 'none';
-  els.cameraInput.value = ''; // reset
-  els.previewWrapper.style.display = 'none';
+  if (els.tipe.value !== 'foto') {
+    currentState.photoBase64 = null;
+    els.previewWrapper.style.display = 'none';
+  }
 });
 
 els.btnCamera.addEventListener('click', () => {
@@ -153,20 +157,23 @@ els.cameraInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
-  if (file.size > CONFIG.maxPhotoSize) {
-    showError(`Ukuran foto terlalu besar (${(file.size/1024/1024).toFixed(1)}MB). Maksimal 1MB.`);
+  if (file.size > CONFIG.maxPhotoInputSize) {
+    showError(`Ukuran foto mentah terlalu besar (${(file.size/1024/1024).toFixed(1)}MB). Maksimal 20MB.`);
     return;
   }
   
   try {
+    els.btnCamera.textContent = '⏳ Mengompres foto...';
     const compressed = await compressImage(file, CONFIG.maxDimension, CONFIG.quality);
     currentState.photoBase64 = compressed.base64;
     
     els.photoPreview.src = compressed.base64;
     els.previewWrapper.style.display = 'block';
-    showSuccess('Foto dikompres & siap dikirim!');
+    els.btnCamera.textContent = '🔄 Ambil Ulang Foto';
+    showSuccess('Foto berhasil diproses & dikompres!');
   } catch (err) {
     showError('Gagal memproses foto: ' + err.message);
+    els.btnCamera.textContent = '📸 Buka Kamera Selfie';
   }
 });
 
@@ -184,10 +191,10 @@ function compressImage(file, maxDim, quality) {
         
         if (Math.max(width, height) > maxDim) {
           if (width > height) {
-            height = (height * maxDim) / width;
+            height = Math.round((height * maxDim) / width);
             width = maxDim;
           } else {
-            width = (width * maxDim) / height;
+            width = Math.round((width * maxDim) / height);
             height = maxDim;
           }
         }
@@ -196,11 +203,10 @@ function compressImage(file, maxDim, quality) {
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Convert to JPEG (lebih kecil dari PNG)
         const base64 = canvas.toDataURL('image/jpeg', quality);
         resolve({ base64, width, height });
       };
-      img.onerror = () => reject(new Error('Gagal membaca gambar'));
+      img.onerror = () => reject(new Error('Gagal render gambar'));
       img.src = e.target.result;
     };
     reader.onerror = () => reject(new Error('Gagal membaca file'));
@@ -213,84 +219,63 @@ function showSuccess(msg) {
   els.alertBox.className = 'alert success';
   els.alertBox.textContent = msg;
   els.alertBox.style.display = 'block';
-  
-  setTimeout(() => {
-    els.alertBox.style.display = 'none';
-  }, 3000);
+  setTimeout(() => { els.alertBox.style.display = 'none'; }, 4000);
 }
 
 function showError(msg) {
   els.alertBox.className = 'alert error';
   els.alertBox.textContent = msg;
   els.alertBox.style.display = 'block';
-  
-  setTimeout(() => {
-    els.alertBox.style.display = 'none';
-  }, 5000);
+  setTimeout(() => { els.alertBox.style.display = 'none'; }, 6000);
 }
 
 els.form.addEventListener('submit', async (e) => {
   e.preventDefault();
   
-  // Validasi nama
   const nama = els.nama.value.trim();
+  const kelas = els.kelas.value;
+  const jam = els.jam.value;
+
   if (!nama) {
-    showError('Nama/NIS wajib diisi!');
+    showError('Nama Lengkap / NIS wajib diisi!');
     els.nama.focus();
+    return;
+  }
+
+  if (!kelas) {
+    showError('Silakan pilih Kelas!');
+    els.kelas.focus();
+    return;
+  }
+
+  if (!jam) {
+    showError('Silakan pilih Jam Pelajaran / Sesi!');
+    els.jam.focus();
     return;
   }
   
   // Validasi GPS
   if (!currentState.lat || !currentState.lng) {
-    showError('Ambil lokasi GPS dulu!');
-    setGpsStatus('idle', 'Ambil GPS dulu');
-    els.btnGps.click();
+    showError('Silakan ambil lokasi GPS terlebih dahulu!');
+    els.btnGps.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+
+  // Validasi Foto jika tipe = foto
+  if (els.tipe.value === 'foto' && !currentState.photoBase64) {
+    showError('Wajib ambil foto selfie sebelum submit!');
+    els.btnCamera.scrollIntoView({ behavior: 'smooth' });
     return;
   }
   
-  // Validasi webhook URL (mock check)
-  if (CONFIG.webhookUrl.includes('YOUR_WEBHOOK_URL')) {
-    // MODE MOCK: Simulasi tanpa kirim ke server
-    showMockSuccess(nama);
-    return;
-  }
-  
-  // Kirim ke server
-  await submitAttendance(nama);
+  await submitAttendance({ nama, kelas, jam });
 });
 
-function showMockSuccess(nama) {
-  // Simulasi response server
-  const mockResponse = {
-    status: 'ok',
-    msg: `Mock: Absensi "${nama}" diterima.`,
-    timestamp: new Date().toISOString(),
-    serverLat: CONFIG.school.lat,
-    serverLng: CONFIG.school.lng
-  };
-  
-  console.log('[MOCK] Submit data:', {
-    nama,
-    role: els.role.value,
-    tipe: els.tipe.value,
-    lat: currentState.lat,
-    lng: currentState.lng,
-    photo: currentState.photoBase64 ? 'base64(' + currentState.photoBase64.substring(0,50) + '...)' : null
-  });
-  
-  els.nama.value = '';
-  els.previewWrapper.style.display = 'none';
-  els.cameraInput.value = '';
-  currentState.photoBase64 = null;
-  currentState.lat = null;
-  currentState.lng = null;
-  
-  showSuccess(mockResponse.msg);
-}
-
-async function submitAttendance(nama) {
+async function submitAttendance({ nama, kelas, jam }) {
   const payload = {
     nama,
+    kelas,
+    jam,
     role: els.role.value,
     tipe: els.tipe.value,
     lat: currentState.lat,
@@ -300,7 +285,7 @@ async function submitAttendance(nama) {
   };
   
   els.btnSubmit.disabled = true;
-  els.btnText.innerHTML = '<span class="loader"></span> Mengirim...';
+  els.btnText.innerHTML = '<span class="loader"></span> Menyimpan absensi...';
   
   try {
     const res = await fetch(CONFIG.webhookUrl, {
@@ -323,7 +308,7 @@ async function submitAttendance(nama) {
     console.error('Fetch error:', err);
   } finally {
     els.btnSubmit.disabled = false;
-    els.btnText.textContent = '✅ Kirim Absensi';
+    els.btnText.textContent = 'Kirim Absensi';
   }
 }
 
@@ -331,11 +316,9 @@ function resetForm() {
   els.nama.value = '';
   els.previewWrapper.style.display = 'none';
   els.cameraInput.value = '';
+  els.btnCamera.textContent = '📸 Buka Kamera Selfie';
   currentState.photoBase64 = null;
   currentState.lat = null;
   currentState.lng = null;
   setGpsStatus('idle');
 }
-
-// ==================== INIT ====================
-console.log('[Absensi App] Loaded. Config loaded. Webhook URL:', CONFIG.webhookUrl);

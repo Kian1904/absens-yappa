@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="description" content="Sistem presensi siswa SMK Yappa Depok — GPS + selfie, per kelas dan jam pelajaran.">
   <title>Absensi SMK Yappa Depok</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
@@ -13,19 +15,19 @@
         <span class="logo">📍</span>
         <div>
           <h1>Absensi SMK Yappa Depok</h1>
-          <p class="subtitle">Sistem Presensi GPS & Validasi Selfie</p>
+          <p class="subtitle">Presensi GPS & Selfie Per Jam Pelajaran</p>
         </div>
       </div>
-      
+
       <div class="gps-box">
         <div class="gps-header">
-          <span class="label-title">Status GPS</span>
+          <span class="label-title">Status GPS (Radius 20m)</span>
           <span id="gps-badge" class="badge idle">Belum Diambil</span>
         </div>
         <div class="gps-info">
-          <div class="coord-item"><span>Latitude:</span> <b id="val-lat">-</b></div>
-          <div class="coord-item"><span>Longitude:</span> <b id="val-lng">-</b></div>
-          <div class="coord-item"><span>Akurasi:</span> <b id="val-acc">-</b></div>
+          <div class="coord-item"><span>Latitude</span><b id="val-lat">-</b></div>
+          <div class="coord-item"><span>Longitude</span><b id="val-lng">-</b></div>
+          <div class="coord-item"><span>Akurasi</span><b id="val-acc">-</b></div>
         </div>
         <button type="button" class="btn btn-secondary" id="btn-gps">📍 Ambil Lokasi Presisi</button>
       </div>
@@ -39,7 +41,57 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group col">
+          <div class="form-group">
+            <label for="kelas">Kelas</label>
+            <select id="kelas" class="form-control" required>
+              <option value="" disabled selected>Pilih Kelas...</option>
+              <optgroup label="Kelas X">
+                <option value="X A">X A</option>
+                <option value="X B">X B</option>
+                <option value="X C">X C</option>
+                <option value="X D">X D</option>
+                <option value="X E">X E</option>
+              </optgroup>
+              <optgroup label="Kelas XI">
+                <option value="XI A">XI A</option>
+                <option value="XI B">XI B</option>
+                <option value="XI C">XI C</option>
+                <option value="XI D">XI D</option>
+                <option value="XI E">XI E</option>
+              </optgroup>
+              <optgroup label="Kelas XII">
+                <option value="XII A">XII A</option>
+                <option value="XII B">XII B</option>
+                <option value="XII C">XII C</option>
+                <option value="XII D">XII D</option>
+                <option value="XII E">XII E</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="jam">Jam / Sesi</label>
+            <select id="jam" class="form-control" required>
+              <option value="" disabled selected>Pilih Jam...</option>
+              <option value="Masuk / Pagi">Masuk / Pagi</option>
+              <option value="Jam Ke-1">Jam Ke-1 (06.30 - 07.10)</option>
+              <option value="Jam Ke-2">Jam Ke-2 (07.10 - 07.50)</option>
+              <option value="Jam Ke-3">Jam Ke-3 (07.50 - 08.25)</option>
+              <option value="Jam Ke-4">Jam Ke-4 (08.25 - 09.00)</option>
+              <option value="Jam Ke-5">Jam Ke-5 (09.30 - 10.05)</option>
+              <option value="Jam Ke-6">Jam Ke-6 (10.05 - 10.40)</option>
+              <option value="Jam Ke-7">Jam Ke-7 (10.40 - 11.15)</option>
+              <option value="Jam Ke-8">Jam Ke-8 (11.15 - 11.50)</option>
+              <option value="Jam Ke-9">Jam Ke-9 (12.40 - 13.10)</option>
+              <option value="Jam Ke-10">Jam Ke-10 (13.10 - 13.40)</option>
+              <option value="Jam Ke-11">Jam Ke-11 (13.40 - 14.10)</option>
+              <option value="Pulang">Pulang / Siang</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label for="role">Role</label>
             <select id="role" class="form-control">
               <option value="siswa">Siswa</option>
@@ -47,28 +99,27 @@
               <option value="staff">Staff</option>
             </select>
           </div>
-          <div class="form-group col">
+          <div class="form-group">
             <label for="tipe">Metode Absen</label>
             <select id="tipe" class="form-control">
+              <option value="foto" selected>GPS + Selfie</option>
               <option value="gps">GPS Saja</option>
-              <option value="foto">GPS + Selfie</option>
             </select>
           </div>
         </div>
 
-        <!-- Section Selfie -->
-        <div id="section-selfie" class="form-group selfie-box" style="display: none;">
-          <label>Foto Selfie (Wajib Kamera Langsung)</label>
-          <input type="file" id="camera-input" accept="image/*" capture="user" style="display: none;">
+        <div id="section-selfie" class="selfie-box">
+          <label>Foto Selfie (Kamera Langsung)</label>
+          <input type="file" id="camera-input" accept="image/*" capture="user">
           <button type="button" class="btn btn-outline" id="btn-camera">📸 Buka Kamera Selfie</button>
           <div class="preview-wrapper" id="preview-wrapper" style="display: none;">
             <img id="photo-preview" alt="Preview Foto">
-            <span class="preview-badge">Terkonversi 600px WebP/JPEG</span>
+            <span class="preview-badge">Compressed · Drive Ready</span>
           </div>
         </div>
 
         <button type="submit" class="btn btn-primary" id="btn-submit">
-          <span class="btn-text">✅ Kirim Absensi</span>
+          <span class="btn-text">Kirim Absensi</span>
         </button>
       </form>
 
