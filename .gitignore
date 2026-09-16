@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build artifact (single-file bundle, hasil build_monolith.py)
+absensi-live.html
+*.bundle.html
+
+# Netlify / Vercel lokal state
+.netlify/
+.vercel/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+.vscode/
+.idea/
