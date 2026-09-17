@@ -6,7 +6,7 @@
 // ==================== CONFIG ====================
 const CONFIG = {
   // Webhook Google Apps Script
-  webhookUrl: 'https://script.google.com/macros/s/AKfycbwjQttCY2qtNNvy8OpPVnz10_hVQdgPMYlKdhTfrAw2uUavh0NPO1qmaIqdZfO3aBOs/exec',
+  webhookUrl: 'https://script.google.com/macros/s/AKfycbzrxjjVs3GvmJsplq4CrrdUz5JCX64zh78pDpxaNS-PR-5IU5AQhyDFNSPF77CZtR1X/exec',
   
   // Titik koordinat sekolah (SMK Yappa Depok)
   school: {
