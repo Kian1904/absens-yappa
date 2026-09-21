@@ -23,7 +23,10 @@ const CONFIG = {
   // Selfie Compression (iPhone & Android high-res safe)
   maxPhotoInputSize: 20 * 1024 * 1024, // terima hingga 20MB file mentah
   maxDimension: 800, // resize max 800px (sangat tajam untuk selfie tapi kecil ukurannya)
-  quality: 0.75 // JPEG quality ~80-120KB
+  quality: 0.75, // JPEG quality ~80-120KB
+  
+  // Security Token
+  secretToken: 'YAPPA-2026-SECRET'
 };
 
 // ==================== DOM ELEMENTS ====================
@@ -273,6 +276,7 @@ els.form.addEventListener('submit', async (e) => {
 
 async function submitAttendance({ nama, kelas, jam }) {
   const payload = {
+    token: CONFIG.secretToken,
     nama,
     kelas,
     jam,
