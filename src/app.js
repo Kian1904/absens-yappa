@@ -1,31 +1,19 @@
-/**
- * Absensi App - SMK Yappa Depok
- * Frontend logic: Multi-Class, Shift/Jam, GPS (20m), High-Res/iPhone Image Compressor, Webhook to Google Sheets
- */
+// Absensi App - SMK Yappa Depok Frontend logic: Multi-Class, Shift/Jam, GPS (20m), High-Res/iPhone Image Compressor, Webhook to Google Sheets
 
 // ==================== CONFIG ====================
 const CONFIG = {
-  // Webhook Google Apps Script
   webhookUrl: 'https://script.google.com/macros/s/AKfycbx1wNb0V4fI3AhfKMX_Mz8-d-hm3QDntXZmQKbtEp1eR0v3XhxxsMdro__T633_yuUd/exec',
-  
-  // Titik koordinat sekolah (SMK Yappa Depok)
   school: {
     name: 'SMK Yappa Depok',
     lat: -6.394003,
     lng: 106.845314,
-    radius: 30 // meter
+    radius: 30
   },
-  
-  // Validasi GPS
-  maxAcceptableAccuracy: 40, // meter toleransi GPS HP
+  maxAcceptableAccuracy: 40,
   requireAccuracy: true,
-  
-  // Selfie Compression (iPhone & Android high-res safe)
-  maxPhotoInputSize: 20 * 1024 * 1024, // terima hingga 20MB file mentah
-  maxDimension: 800, // resize max 800px (sangat tajam untuk selfie tapi kecil ukurannya)
-  quality: 0.75, // JPEG quality ~80-120KB
-  
-  // Security Token
+  maxPhotoInputSize: 20 * 1024 * 1024,
+  maxDimension: 800,
+  quality: 0.75,
   secretToken: 'YAPPA-2026-SECRET'
 };
 
@@ -60,6 +48,21 @@ let currentState = {
   photoBase64: null
 };
 
+// ==================== SECURITY HELPER ====================
+async function generateSecurePayload(nama, jam) {
+  const timestamp = Date.now();
+  const secret = CONFIG.secretToken; 
+  const rawData = `${nama}|${jam}|${timestamp}|${secret}`;
+  
+  const msgBuffer = new TextEncoder().encode(rawData);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  return { timestamp, signature };
+}
+
 // ==================== GPS HANDLERS ====================
 function setGpsStatus(status, message = '') {
   const map = {
@@ -70,22 +73,26 @@ function setGpsStatus(status, message = '') {
   };
   
   const s = map[status] || map.idle;
-  els.gpsBadge.className = `badge ${s.badge}`;
-  els.gpsBadge.textContent = message || s.text;
+  if(els.gpsBadge) {
+    els.gpsBadge.className = `badge ${s.badge}`;
+    els.gpsBadge.textContent = message || s.text;
+  }
   
-  if (status === 'active') {
-    els.valLat.textContent = currentState.lat.toFixed(6);
-    els.valLng.textContent = currentState.lng.toFixed(6);
-    els.valAcc.textContent = currentState.accuracy.toFixed(1) + ' m';
-  } else {
-    els.valLat.textContent = '-';
-    els.valLng.textContent = '-';
-    els.valAcc.textContent = '-';
+  if(els.valLat && els.valLng && els.valAcc) {
+    if (status === 'active') {
+      els.valLat.textContent = currentState.lat.toFixed(6);
+      els.valLng.textContent = currentState.lng.toFixed(6);
+      els.valAcc.textContent = currentState.accuracy.toFixed(1) + ' m';
+    } else {
+      els.valLat.textContent = '-';
+      els.valLng.textContent = '-';
+      els.valAcc.textContent = '-';
+    }
   }
 }
 
 function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371000; // meter
+  const R = 6371000;
   const toRad = Math.PI / 180;
   const dLat = (lat2 - lat1) * toRad;
   const dLng = (lng2 - lng1) * toRad;
@@ -107,78 +114,84 @@ function validateLocation(lat, lng, accuracy) {
   return { distance: dist, valid: true };
 }
 
-els.btnGps.addEventListener('click', () => {
-  if (!navigator.geolocation) {
-    setGpsStatus('error', 'GPS tidak didukung');
-    showError('Browser Anda tidak mendukung Geolocation API.');
-    return;
-  }
-  
-  setGpsStatus('processing');
-  
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      currentState.lat = pos.coords.latitude;
-      currentState.lng = pos.coords.longitude;
-      currentState.accuracy = pos.coords.accuracy || 0;
-      
-      try {
-        validateLocation(currentState.lat, currentState.lng, currentState.accuracy);
-        setGpsStatus('active', `Valid ✅ (${currentState.accuracy.toFixed(0)}m)`);
-        showSuccess('Lokasi GPS valid di area sekolah!');
-      } catch (err) {
-        setGpsStatus('error', err.message);
-        showError(err.message);
-      }
-    },
-    err => {
-      setGpsStatus('error', 'Gagal ambil lokasi');
-      showError('GPS Error: ' + err.message + '. Pastikan GPS aktif dan beri izin browser.');
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0
+if(els.btnGps) {
+  els.btnGps.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('error', 'GPS tidak didukung');
+      showError('Browser Anda tidak mendukung Geolocation API.');
+      return;
     }
-  );
-});
+    
+    setGpsStatus('processing');
+    
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        currentState.lat = pos.coords.latitude;
+        currentState.lng = pos.coords.longitude;
+        currentState.accuracy = pos.coords.accuracy || 0;
+        
+        try {
+          validateLocation(currentState.lat, currentState.lng, currentState.accuracy);
+          setGpsStatus('active', `Valid ✅ (${currentState.accuracy.toFixed(0)}m)`);
+          showSuccess('Lokasi GPS valid di area sekolah!');
+        } catch (err) {
+          setGpsStatus('error', err.message);
+          showError(err.message);
+        }
+      },
+      err => {
+        setGpsStatus('error', 'Gagal ambil lokasi');
+        showError('GPS Error: ' + err.message + '. Pastikan GPS aktif dan beri izin browser.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
 
 // ==================== CAMERA / SELFIE HANDLERS ====================
-els.tipe.addEventListener('change', () => {
-  els.sectionSelfie.style.display = els.tipe.value === 'foto' ? 'block' : 'none';
-  if (els.tipe.value !== 'foto') {
-    currentState.photoBase64 = null;
-    els.previewWrapper.style.display = 'none';
-  }
-});
+if(els.tipe) {
+  els.tipe.addEventListener('change', () => {
+    if(els.sectionSelfie) {
+      els.sectionSelfie.style.display = els.tipe.value === 'foto' ? 'block' : 'none';
+    }
+    if (els.tipe.value !== 'foto') {
+      currentState.photoBase64 = null;
+      if(els.previewWrapper) els.previewWrapper.style.display = 'none';
+    }
+  });
+}
 
-els.btnCamera.addEventListener('click', () => {
-  els.cameraInput.click();
-});
+if(els.btnCamera) {
+  els.btnCamera.addEventListener('click', () => {
+    if(els.cameraInput) els.cameraInput.click();
+  });
+}
 
-els.cameraInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  if (file.size > CONFIG.maxPhotoInputSize) {
-    showError(`Ukuran foto mentah terlalu besar (${(file.size/1024/1024).toFixed(1)}MB). Maksimal 20MB.`);
-    return;
-  }
-  
-  try {
-    els.btnCamera.textContent = '⏳ Mengompres foto...';
-    const compressed = await compressImage(file, CONFIG.maxDimension, CONFIG.quality);
-    currentState.photoBase64 = compressed.base64;
+if(els.cameraInput) {
+  els.cameraInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     
-    els.photoPreview.src = compressed.base64;
-    els.previewWrapper.style.display = 'block';
-    els.btnCamera.textContent = '🔄 Ambil Ulang Foto';
-    showSuccess('Foto berhasil diproses & dikompres!');
-  } catch (err) {
-    showError('Gagal memproses foto: ' + err.message);
-    els.btnCamera.textContent = '📸 Buka Kamera Selfie';
-  }
-});
+    if (file.size > CONFIG.maxPhotoInputSize) {
+      showError(`Ukuran foto mentah terlalu besar (${(file.size/1024/1024).toFixed(1)}MB). Maksimal 20MB.`);
+      return;
+    }
+    
+    try {
+      if(els.btnCamera) els.btnCamera.textContent = '⏳ Mengompres foto...';
+      const compressed = await compressImage(file, CONFIG.maxDimension, CONFIG.quality);
+      currentState.photoBase64 = compressed.base64;
+      
+      if(els.photoPreview) els.photoPreview.src = compressed.base64;
+      if(els.previewWrapper) els.previewWrapper.style.display = 'block';
+      if(els.btnCamera) els.btnCamera.textContent = '🔄 Ambil Ulang Foto';
+      showSuccess('Foto berhasil diproses & dikompres!');
+    } catch (err) {
+      showError('Gagal memproses foto: ' + err.message);
+      if(els.btnCamera) els.btnCamera.textContent = '📸 Buka Kamera Selfie';
+    }
+  });
+}
 
 function compressImage(file, maxDim, quality) {
   return new Promise((resolve, reject) => {
@@ -219,6 +232,7 @@ function compressImage(file, maxDim, quality) {
 
 // ==================== FORM SUBMISSION ====================
 function showSuccess(msg) {
+  if(!els.alertBox) return;
   els.alertBox.className = 'alert success';
   els.alertBox.textContent = msg;
   els.alertBox.style.display = 'block';
@@ -226,103 +240,115 @@ function showSuccess(msg) {
 }
 
 function showError(msg) {
+  if(!els.alertBox) return;
   els.alertBox.className = 'alert error';
   els.alertBox.textContent = msg;
   els.alertBox.style.display = 'block';
   setTimeout(() => { els.alertBox.style.display = 'none'; }, 6000);
 }
 
-els.form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const nama = els.nama.value.trim();
-  const kelas = els.kelas.value;
-  const jam = els.jam.value;
-
-  if (!nama) {
-    showError('Nama Lengkap / NIS wajib diisi!');
-    els.nama.focus();
-    return;
-  }
-
-  if (!kelas) {
-    showError('Silakan pilih Kelas!');
-    els.kelas.focus();
-    return;
-  }
-
-  if (!jam) {
-    showError('Silakan pilih Jam Pelajaran / Sesi!');
-    els.jam.focus();
-    return;
-  }
-  
-  // Validasi GPS
-  if (!currentState.lat || !currentState.lng) {
-    showError('Silakan ambil lokasi GPS terlebih dahulu!');
-    els.btnGps.scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-
-  // Validasi Foto jika tipe = foto
-  if (els.tipe.value === 'foto' && !currentState.photoBase64) {
-    showError('Wajib ambil foto selfie sebelum submit!');
-    els.btnCamera.scrollIntoView({ behavior: 'smooth' });
-    return;
-  }
-  
-  await submitAttendance({ nama, kelas, jam });
-});
-
-async function submitAttendance({ nama, kelas, jam }) {
-  const payload = {
-    token: CONFIG.secretToken,
-    nama,
-    kelas,
-    jam,
-    role: els.role.value,
-    tipe: els.tipe.value,
-    lat: currentState.lat,
-    lng: currentState.lng,
-    photo: currentState.photoBase64 || null,
-    timestamp: new Date().toISOString()
-  };
-  
-  els.btnSubmit.disabled = true;
-  els.btnText.innerHTML = '<span class="loader"></span> Menyimpan absensi...';
-  
-  try {
-    const res = await fetch(CONFIG.webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-      redirect: 'follow'
-    });
+if(els.form) {
+  els.form.addEventListener('submit', async (e) => {
+    e.preventDefault();
     
-    const data = await res.json();
+    const nama = els.nama.value.trim();
+    const kelas = els.kelas.value;
+    const jam = els.jam.value;
+
+    if (!nama) { showError('Nama Lengkap / NIS wajib diisi!'); els.nama.focus(); return; }
+    if (!kelas) { showError('Silakan pilih Kelas!'); els.kelas.focus(); return; }
+    if (!jam) { showError('Silakan pilih Jam Pelajaran / Sesi!'); els.jam.focus(); return; }
     
-    if (data.status === 'ok') {
-      showSuccess(data.msg);
-      resetForm();
-    } else {
-      showError(data.msg || 'Gagal mengirim absensi.');
+    if (!currentState.lat || !currentState.lng) {
+      showError('Silakan ambil lokasi GPS terlebih dahulu!');
+      if(els.btnGps) els.btnGps.scrollIntoView({ behavior: 'smooth' });
+      return;
     }
-  } catch (err) {
-    showError('Network error: ' + err.message);
-    console.error('Fetch error:', err);
-  } finally {
-    els.btnSubmit.disabled = false;
-    els.btnText.textContent = 'Kirim Absensi';
+
+    if (els.tipe.value === 'foto' && !currentState.photoBase64) {
+      showError('Wajib ambil foto selfie sebelum submit!');
+      if(els.btnCamera) els.btnCamera.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    
+    await submitAttendanceWithRetry({ nama, kelas, jam }, 3);
+  });
+}
+
+// Fungsi Submit dengan Auto-Retry (Write Bottleneck Mitigasi)
+async function submitAttendanceWithRetry({ nama, kelas, jam }, maxRetries) {
+  let attempt = 0;
+  
+  while (attempt < maxRetries) {
+    attempt++;
+    try {
+      if(els.btnSubmit) els.btnSubmit.disabled = true;
+      if(els.btnText) {
+        els.btnText.innerHTML = attempt > 1 
+          ? `<span class="loader"></span> Server sibuk, mencoba ulang (${attempt}/${maxRetries})...` 
+          : `<span class="loader"></span> Menyimpan absensi...`;
+      }
+      
+      const security = await generateSecurePayload(nama, jam);
+
+      const payload = {
+        nama,
+        kelas,
+        jam,
+        role: els.role ? els.role.value : 'siswa',
+        tipe: els.tipe ? els.tipe.value : 'gps',
+        lat: currentState.lat,
+        lng: currentState.lng,
+        photo: currentState.photoBase64 || null,
+        timestamp: security.timestamp,
+        signature: security.signature
+      };
+      
+      const res = await fetch(CONFIG.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+      
+      const data = await res.json();
+      
+      if (data.status === 'ok') {
+        showSuccess(data.msg);
+        resetForm();
+        return; // Berhasil, keluar dari loop
+      } else {
+        // Kalau error karena duplikat atau signature, gak usah retry
+        showError(data.msg || 'Gagal mengirim absensi.');
+        return; 
+      }
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed:`, err);
+      if (attempt >= maxRetries) {
+        showError('Gagal menghubungi server setelah 3 kali percobaan. Coba lagi nanti.');
+      } else {
+        // Tunggu 2 detik sebelum retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    } finally {
+      if(els.btnSubmit) els.btnSubmit.disabled = false;
+      if(els.btnText) els.btnText.textContent = 'Kirim Absensi';
+    }
   }
 }
 
 function resetForm() {
-  els.nama.value = '';
-  els.previewWrapper.style.display = 'none';
-  els.cameraInput.value = '';
-  els.btnCamera.textContent = '📸 Buka Kamera Selfie';
+  if(els.nama) els.nama.value = '';
+  if(els.previewWrapper) els.previewWrapper.style.display = 'none';
+  if(els.cameraInput) els.cameraInput.value = '';
+  if(els.btnCamera) els.btnCamera.textContent = '📸 Buka Kamera Selfie';
   currentState.photoBase64 = null;
   currentState.lat = null;
   currentState.lng = null;
   setGpsStatus('idle');
 }
+"""
+
+with open('/mnt/data/app_js_updated.txt', 'w', encoding='utf-8') as f:
+    f.write(app_js)
+
