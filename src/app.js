@@ -6,14 +6,14 @@
 // ==================== CONFIG ====================
 const CONFIG = {
   // Webhook Google Apps Script
-  webhookUrl: 'https://script.google.com/macros/s/AKfycbzrxjjVs3GvmJsplq4CrrdUz5JCX64zh78pDpxaNS-PR-5IU5AQhyDFNSPF77CZtR1X/exec',
+  webhookUrl: 'https://script.google.com/macros/s/AKfycbx1wNb0V4fI3AhfKMX_Mz8-d-hm3QDntXZmQKbtEp1eR0v3XhxxsMdro__T633_yuUd/exec',
   
   // Titik koordinat sekolah (SMK Yappa Depok)
   school: {
     name: 'SMK Yappa Depok',
     lat: -6.394003,
     lng: 106.845314,
-    radius: 20 // meter
+    radius: 30 // meter
   },
   
   // Validasi GPS
