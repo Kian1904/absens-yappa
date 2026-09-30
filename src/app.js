@@ -9,7 +9,7 @@ const CONFIG = {
     lng: 106.8455327,
     radius: 75
   },
-  maxAcceptableAccuracy: 40,
+  maxAcceptableAccuracy: 75,
   requireAccuracy: true,
   maxPhotoInputSize: 20 * 1024 * 1024,
   maxDimension: 800,
