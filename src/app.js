@@ -347,8 +347,3 @@ function resetForm() {
   currentState.lng = null;
   setGpsStatus('idle');
 }
-"""
-
-with open('/mnt/data/app_js_updated.txt', 'w', encoding='utf-8') as f:
-    f.write(app_js)
-
