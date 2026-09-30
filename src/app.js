@@ -5,9 +5,9 @@ const CONFIG = {
   webhookUrl: 'https://script.google.com/macros/s/AKfycbx1wNb0V4fI3AhfKMX_Mz8-d-hm3QDntXZmQKbtEp1eR0v3XhxxsMdro__T633_yuUd/exec',
   school: {
     name: 'SMK Yappa Depok',
-    lat: -6.394003,
-    lng: 106.845314,
-    radius: 30
+    lat: -6.394014984,
+    lng: 106.8455327,
+    radius: 75
   },
   maxAcceptableAccuracy: 40,
   requireAccuracy: true,
